@@ -20,7 +20,7 @@ class Template(object):
     _STRIP_EXPRESSION_REGEX = re.compile(r'{(.+?)(:(\\}|.)+?)}')
     _PLAIN_PLACEHOLDER_REGEX = re.compile(r'{(.+?)}')
     _TEMPLATE_REFERENCE_REGEX = re.compile(r'{@(?P<reference>.+?)}')
-    _OPTIONAL_KEY_REGEX = re.compile(r'(\[.*?\])')
+    _OPTIONAL_KEY_REGEX = re.compile(r'(\[.+?\])')
     
     ANCHOR_START, ANCHOR_END, ANCHOR_BOTH = (1, 2, 3)
 

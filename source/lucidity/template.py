@@ -20,15 +20,16 @@ class Template(object):
     _STRIP_EXPRESSION_REGEX = re.compile(r'{(.+?)(:(\\}|.)+?)}')
     _PLAIN_PLACEHOLDER_REGEX = re.compile(r'{(.+?)}')
     _TEMPLATE_REFERENCE_REGEX = re.compile(r'{@(?P<reference>.+?)}')
-
+    _OPTIONAL_KEY_REGEX = re.compile(r'(\[.+?\])')
+    
     ANCHOR_START, ANCHOR_END, ANCHOR_BOTH = (1, 2, 3)
 
     RELAXED, STRICT = (1, 2)
 
-    def __init__(self, name, pattern, anchor=ANCHOR_START,
-                 default_placeholder_expression='[\w_.\-]+',
-                 duplicate_placeholder_mode=RELAXED,
-                 template_resolver=None):
+    def __init__(self, name, pattern, anchor=ANCHOR_BOTH,
+                 default_placeholder_expression='[A-Za-z0-9\-]+',
+                 duplicate_placeholder_mode=STRICT,
+                 template_resolver=None, key_resolver=None):
         '''Initialise with *name* and *pattern*.
 
         *anchor* determines how the pattern is anchored during a parse. A
@@ -54,6 +55,7 @@ class Template(object):
         super(Template, self).__init__()
         self.duplicate_placeholder_mode = duplicate_placeholder_mode
         self.template_resolver = template_resolver
+        self.key_resolver = key_resolver
 
         self._default_placeholder_expression = default_placeholder_expression
         self._period_code = '_LPD_'
@@ -118,49 +120,82 @@ class Template(object):
         parsable by this template.
 
         '''
-        # Construct regular expression for expanded pattern.
-        regex = self._construct_regular_expression(self.expanded_pattern())
-
+        # Construct a list of regular expression for expanded pattern.
+        regexes = self._construct_regular_expression(self.expanded_pattern())
         # Parse.
         parsed = {}
-
-        match = regex.search(path)
-        if match:
-            data = {}
-            for key, value in sorted(match.groupdict().items()):
-                # Strip number that was added to make group name unique.
-                key = key[:-3]
-
-                # If strict mode enabled for duplicate placeholders, ensure that
-                # all duplicate placeholders extract the same value.
-                if self.duplicate_placeholder_mode == self.STRICT:
-                    if key in parsed:
-                        if parsed[key] != value:
-                            raise lucidity.error.ParseError(
-                                'Different extracted values for placeholder '
-                                '{0!r} detected. Values were {1!r} and {2!r}.'
-                                .format(key, parsed[key], value)
-                            )
-                    else:
-                        parsed[key] = value
-
-                # Expand dot notation keys into nested dictionaries.
-                target = data
-
-                parts = key.split(self._period_code)
-                for part in parts[:-1]:
-                    target = target.setdefault(part, {})
-
-                target[parts[-1]] = value
-
-            return data
-
+        for regex in regexes:
+            match = regex.search(path)
+            
+            if match:
+                data = {}
+                for key, value in sorted(match.groupdict().items()):
+                    # Strip number that was added to make group name unique.
+                    key = key[:-3]
+    
+                    # If strict mode enabled for duplicate placeholders, ensure that
+                    # all duplicate placeholders extract the same value.
+                    if self.duplicate_placeholder_mode == self.STRICT:
+                        if key in parsed:
+                            if parsed[key] != value:
+                                raise lucidity.error.ParseError(
+                                    'Different extracted values for placeholder '
+                                    '{0!r} detected. Values were {1!r} and {2!r}.'
+                                    .format(key, parsed[key], value)
+                                )
+                        else:
+                            if value:
+                                parsed[key] = value
+    
+                    # Expand dot notation keys into nested dictionaries.
+                    target = data
+     
+                    parts = key.split(self._period_code)
+                    for part in parts[:-1]:
+                        target = target.setdefault(part, {})
+     
+                    target[parts[-1]] = value
+                
+                newData=dict()
+                for key,value in data.items():
+                    if value != None:
+                        newData[key]=value
+                return newData
+    
         else:
             raise lucidity.error.ParseError(
                 'Path {0!r} did not match template pattern.'.format(path)
             )
 
-    def format(self, data):
+    def missing(self, data, ignoreOptionals=False):
+        '''Returns a set of missing keys
+        optional keys are ignored/subtracted
+        '''
+        data_keys = set(data.keys())
+        if self.key_resolver:
+            new_data_keys = list()
+            for key in data_keys:
+                if key in self.key_resolver:
+                    new_data_keys.append(self.key_resolver.get(key))
+                else:
+                    new_data_keys.append(key)
+            data_keys = new_data_keys
+        all_key = self.keys().difference(data_keys)
+        if ignoreOptionals:
+            return all_key
+        minus_opt = all_key.difference(self.optional_keys())
+        return minus_opt
+
+    def apply_fields(self,data,abstract=False):
+        '''
+        here for convenience
+        
+        :param data: dict of fields
+        :param abstract: if there are lucidity.key objects with an abstract key the formatting will use the abstract definition
+        '''
+        self.format(data, abstract=abstract)
+
+    def format(self, data, abstract=False):
         '''Return a path formatted by applying *data* to this template.
 
         Raise :py:class:`~lucidity.error.FormatError` if *data* does not
@@ -171,26 +206,39 @@ class Template(object):
         format_specification = self._construct_format_specification(
             self.expanded_pattern()
         )
+        
+        #remove all missing optional keys from the format spec   
+        format_specification = re.sub(
+            self._OPTIONAL_KEY_REGEX,
+            functools.partial(self._remove_optional_keys, data = data),
+            format_specification
+            )
 
         return self._PLAIN_PLACEHOLDER_REGEX.sub(
-            functools.partial(self._format, data=data),
+            functools.partial(self._format, data=data,abstract=abstract),
             format_specification
         )
 
-    def _format(self, match, data):
+    def _format(self, match, data, abstract= False):
         '''Return value from data for *match*.'''
+        
         placeholder = match.group(1)
         parts = placeholder.split('.')
-
         try:
             value = data
             for part in parts:
                 value = value[part]
-
+                if part in self.key_resolver:
+                    key = self.key_resolver.get(part)
+                    key.setValue(value)
+                    value = str(key)
+                    if abstract and key.abstract:
+                        value = str(key.abstract)
+                        
         except (TypeError, KeyError):
             raise lucidity.error.FormatError(
-                'Could not format data {0!r} due to missing key {1!r}.'
-                .format(data, placeholder)
+                'Could not format data {0!r} due to missing key(s) {1!r}.'
+                .format(data, list(self.missing(data)))
             )
 
         else:
@@ -201,7 +249,36 @@ class Template(object):
         format_specification = self._construct_format_specification(
             self.expanded_pattern()
         )
-        return set(self._PLAIN_PLACEHOLDER_REGEX.findall(format_specification))
+        if not self.key_resolver:
+            return set(self._PLAIN_PLACEHOLDER_REGEX.findall(format_specification))
+        else:
+            keys = list()
+            for key in set(self._PLAIN_PLACEHOLDER_REGEX.findall(format_specification)):
+                if key in self.key_resolver:
+                    keys.append(self.key_resolver.get(key))
+                else:
+                    keys.append(key)
+            return set(keys)
+
+    def optional_keys(self):
+        format_specification = self._construct_format_specification(
+            self.expanded_pattern()
+        )
+        optional_keys = list()
+        temp_keys = self._OPTIONAL_KEY_REGEX.findall(format_specification)
+        for key in temp_keys:
+            optional_keys.extend(self._PLAIN_PLACEHOLDER_REGEX.findall(key))
+        if not self.key_resolver:
+            return set(optional_keys)
+        else:
+            keys = list()
+            for key in set(optional_keys):
+                if key in self.key_resolver:
+                    keys.append(self.key_resolver.get(key))
+                else:
+                    keys.append(key)
+            return set(keys)
+        
 
     def references(self):
         '''Return unique set of referenced templates in pattern.'''
@@ -210,51 +287,77 @@ class Template(object):
         )
         return set(self._TEMPLATE_REFERENCE_REGEX.findall(format_specification))
 
+    def _remove_optional_keys(self, match, data):
+        pattern = match.group(0)
+        placeholders = list(set(self._PLAIN_PLACEHOLDER_REGEX.findall(pattern)))
+        for placeholder in placeholders:
+            if not placeholder in data:
+                return ""
+        return pattern[1:-1]
+    
     def _construct_format_specification(self, pattern):
         '''Return format specification from *pattern*.'''
         return self._STRIP_EXPRESSION_REGEX.sub('{\g<1>}', pattern)
 
+    def _construct_expressions(self, pattern):
+        optionalKeys = re.split(self._OPTIONAL_KEY_REGEX, pattern)
+        options = ['']
+        for opt in optionalKeys:
+            temp_options = []
+            if opt == '':
+                continue
+            if opt.startswith('['):
+                temp_options = options[:]
+                opt = opt[1:-1]
+            for option in options:
+               temp_options.append(option + opt)
+            options = temp_options
+        return options
+
     def _construct_regular_expression(self, pattern):
         '''Return a regular expression to represent *pattern*.'''
         # Escape non-placeholder components.
-        expression = re.sub(
-            r'(?P<placeholder>{(.+?)(:(\\}|.)+?)?})|(?P<other>.+?)',
-            self._escape,
-            pattern
-        )
-
-        # Replace placeholders with regex pattern.
-        expression = re.sub(
-            r'{(?P<placeholder>.+?)(:(?P<expression>(\\}|.)+?))?}',
-            functools.partial(
-                self._convert, placeholder_count=defaultdict(int)
-            ),
-            expression
-        )
-
-        if self._anchor is not None:
-            if bool(self._anchor & self.ANCHOR_START):
-                expression = '^{0}'.format(expression)
-
-            if bool(self._anchor & self.ANCHOR_END):
-                expression = '{0}$'.format(expression)
-
-        # Compile expression.
-        try:
-            compiled = re.compile(expression)
-        except re.error as error:
-            if any([
-                'bad group name' in str(error),
-                'bad character in group name' in str(error)
-            ]):
-                raise ValueError('Placeholder name contains invalid '
-                                 'characters.')
-            else:
-                _, value, traceback = sys.exc_info()
-                message = 'Invalid pattern: {0}'.format(value)
-                raise ValueError, message, traceback  #@IgnorePep8
-
-        return compiled
+        compiles = list()
+        
+        expressions = self._construct_expressions(pattern)
+        for expression in expressions:
+            expression = re.sub(
+                r'(?P<placeholder>{(.+?)(:(\\}|.)+?)?})|(?P<other>.+?)',
+                self._escape,
+                expression
+            )
+    
+            # Replace placeholders with regex pattern.
+            expression = re.sub(
+                r'{(?P<placeholder>.+?)(:(?P<expression>(\\}|.)+?))?}',
+                functools.partial(
+                    self._convert, placeholder_count=defaultdict(int)
+                ),
+                expression
+            )
+    
+            if self._anchor is not None:
+                if bool(self._anchor & self.ANCHOR_START):
+                    expression = '^{0}'.format(expression)
+    
+                if bool(self._anchor & self.ANCHOR_END):
+                    expression = '{0}$'.format(expression)
+            # Compile expression.
+            try:
+                compiled = re.compile(expression)
+            except re.error as error:
+                if any([
+                    'bad group name' in str(error),
+                    'bad character in group name' in str(error)
+                ]):
+                    raise ValueError('Placeholder name contains invalid '
+                                     'characters.')
+                else:
+                    _, value, traceback = sys.exc_info()
+                    message = 'Invalid pattern: {0}'.format(value)
+                    raise ValueError, message, traceback  #@IgnorePep8
+            compiles.append(compiled)
+        return compiles
 
     def _convert(self, match, placeholder_count):
         '''Return a regular expression to represent *match*.
@@ -286,6 +389,12 @@ class Template(object):
         )
 
         expression = match.group('expression')
+        if self.key_resolver:
+            if placeholder_name[:-3] in self.key_resolver:
+                #check if there is a regex on the key object
+                key = self.key_resolver.get(placeholder_name[:-3])
+                if key.regex:
+                    expression = key.regex.pattern
         if expression is None:
             expression = self._default_placeholder_expression
 
@@ -299,7 +408,7 @@ class Template(object):
         groups = match.groupdict()
         if groups['other'] is not None:
             return re.escape(groups['other'])
-
+ 
         return groups['placeholder']
 
 

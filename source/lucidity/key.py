@@ -16,21 +16,17 @@ class Key(object):
     types are "str" and "int"
     
     '''
-    def __init__(self,**kwargs):
+    def __init__(self, name, type,**kwargs):
         super(Key, self).__init__()
-        if not 'name' in kwargs.keys() or not 'type' in kwargs.keys():
-            raise Exception('please provide "name" and "type" to construct a key object')
         
+        self.__name = name
+        self.__type = type
         self.__value = None
         self.__regex = None
         self.__padding = None
         self.__abstract = ''
         
         for key, value in kwargs.items():
-            if key == 'name':
-                self.__name = value
-            if key == 'type':
-                self.__type = value
             if key == 'regex':
                 self.__regex = re.compile(value)
             if key == 'abstract':
@@ -66,21 +62,24 @@ class Key(object):
         return self.__value
 
     def setValue(self, value):
-        
-        if self.type == int and type(value) == int and self.padding:
-            ## we can skip the regex check if the incoming value is an int and we do have a padding
-            self.__value = self.type(value)
-            return
-        
-        if self.regex:
-            if re.match(self.regex, value):
+        if value:
+            if self.type == int and isinstance(value,int) and self.padding:
+                ## we can skip the regex check if the incoming value is an int and we do have a padding
                 self.__value = self.type(value)
                 return
+            
+            if self.regex:
+                if re.match(self.regex, value):
+                    if self.abstract:
+                        if value == self.abstract:
+                            return
+                    self.__value = self.type(value)
+                    return
+                else:
+                    raise Exception('provided value {0} does not match regex {1} for {2}'.format(value, self.regex.pattern,self.__repr__()))
             else:
-                raise Exception('provided value {0} does not match regex {1} for {2}'.format(value, self.regex.pattern,self.__repr__()))
-        else:
-            self.__value = self.type(value)
-            return
+                self.__value = self.type(value)
+                return
             
     def __repr__(self):
         if self.value:
@@ -93,6 +92,8 @@ class Key(object):
         used in the format method to fill the keys
         '''
         if not self.value and not self.value == 0:
+            if self.abstract:
+                return str(self.abstract)
             return str(self.name) 
         if self.type == str:
             return str(self.value)
@@ -106,33 +107,4 @@ class Key(object):
         compare against name 
         '''
         return cmp(self.name,other)
-        
-        
-if __name__ == '__main__':
-    keys = [{'name': 'shot',
-                    'regex': r'^([0-9]){3}$',
-                    'type': int,
-                    'padding': '%04d'
-                    }
-            ,
-            {'name': 'sequence',
-                    'regex': r'([0-9]){4}',
-                    'type': int,
-                    'padding': '%04d'
-                    }
-            ,
-            {'name': 'version',
-                    'regex': r'([0-9]){3}',
-                    'type': int,
-                    'padding': '%03d'
-                    }
-            ]
-    
-    foundKeys = list()
-    for key in keys:
-        foundKeys.append(Key(**key))
-        #
-    foundKeys[0].setValue('010')
-    print foundKeys[0].padding
-    print foundKeys
     

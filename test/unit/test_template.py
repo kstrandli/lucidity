@@ -3,7 +3,9 @@
 # :license: See LICENSE.txt.
 
 import pytest
-
+import sys
+import os
+sys.path.append(os.path.join(os.path.dirname(__file__), '..','..', 'source'))
 from lucidity import Template, Resolver
 from lucidity.error import ParseError, FormatError, ResolveError
 
@@ -97,7 +99,7 @@ def test_invalid_pattern(pattern):
 ])
 def test_matching_parse(pattern, path, expected, template_resolver):
     '''Extract data from matching path.'''
-    template = Template('test', pattern, template_resolver=template_resolver)
+    template = Template('test', pattern, template_resolver=template_resolver, duplicate_placeholder_mode=1)
     data = template.parse(path)
     assert data == expected
 

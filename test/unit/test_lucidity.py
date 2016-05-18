@@ -4,6 +4,8 @@
 
 import os
 import operator
+import sys
+sys.path.append(os.path.join(os.path.dirname(__file__), '..','..', 'source'))
 
 import pytest
 

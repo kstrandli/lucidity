@@ -29,7 +29,7 @@ class Template(object):
     def __init__(self, name, pattern, anchor=ANCHOR_BOTH,
                  default_placeholder_expression='[A-Za-z0-9\-]+',
                  duplicate_placeholder_mode=STRICT,
-                 template_resolver=None, key_resolver=None):
+                 template_resolver=None, key_resolver={}):
         '''Initialise with *name* and *pattern*.
 
         *anchor* determines how the pattern is anchored during a parse. A

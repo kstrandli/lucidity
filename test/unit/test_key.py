@@ -56,7 +56,7 @@ def keys():
 ])
 def test_key(name, type):
     '''Construct Key Objects'''
-    TemplateKeys.Key(**locals())
+    TemplateKeys.Key(name=name,type=type)
     
     
 @pytest.mark.parametrize(('keyName', 'input','expected'), [

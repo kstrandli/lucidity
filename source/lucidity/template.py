@@ -6,13 +6,25 @@ import abc
 import sys
 import re
 import functools
-from collections import defaultdict
+from collections import defaultdict,OrderedDict
 
 import lucidity.error
 
 # Type of a RegexObject for isinstance check.
 _RegexType = type(re.compile(''))
 
+
+def OrderedSet(alist):
+    """ Creates an ordered set of type list
+     from a list of tuples or other hashable items 
+     """
+    mmap = {} # implements hashed lookup
+    oset = [] # storage for set
+    for item in alist:
+        if item not in mmap:
+            mmap[item] = 1
+            oset.append(item)
+    return oset
 
 class Template(object):
     '''A template.'''
@@ -156,10 +168,12 @@ class Template(object):
      
                     target[parts[-1]] = value
                 
-                newData=dict()
-                for key,value in data.items():
-                    if value != None:
-                        newData[key]=value
+                newData=OrderedDict()
+                for key in self.keys():
+                    if key in data:
+                        value = data.get(key,None)
+                        if value:
+                            newData[key]=value
                 return newData
     
         else:
@@ -168,7 +182,7 @@ class Template(object):
             )
 
     def missing(self, data, ignoreOptionals=False):
-        '''Returns a set of missing keys
+        '''Returns an unsorted set of missing keys
         optional keys are ignored/subtracted
         '''
         data_keys = set(data.keys())
@@ -180,7 +194,7 @@ class Template(object):
                 else:
                     new_data_keys.append(key)
             data_keys = new_data_keys
-        all_key = self.keys().difference(data_keys)
+        all_key = set(self.keys()).difference(data_keys)
         if ignoreOptionals:
             return all_key
         minus_opt = all_key.difference(self.optional_keys())
@@ -245,20 +259,20 @@ class Template(object):
             return value
 
     def keys(self):
-        '''Return unique set of placeholders in pattern.'''
+        '''Return unique list of placeholders in pattern.'''
         format_specification = self._construct_format_specification(
             self.expanded_pattern()
         )
         if not self.key_resolver:
-            return set(self._PLAIN_PLACEHOLDER_REGEX.findall(format_specification))
+            return OrderedSet(self._PLAIN_PLACEHOLDER_REGEX.findall(format_specification))
         else:
             keys = list()
-            for key in set(self._PLAIN_PLACEHOLDER_REGEX.findall(format_specification)):
+            for key in OrderedSet(self._PLAIN_PLACEHOLDER_REGEX.findall(format_specification)):
                 if key in self.key_resolver:
                     keys.append(self.key_resolver.get(key))
                 else:
                     keys.append(key)
-            return set(keys)
+            return OrderedSet(keys)
 
     def optional_keys(self):
         format_specification = self._construct_format_specification(

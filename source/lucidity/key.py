@@ -25,6 +25,8 @@ class Key(object):
         self.__regex = None
         self.__padding = None
         self.__abstract = ''
+        self.__dbEntity = self.__name
+        self.__dbField = ''
         
         for key, value in kwargs.items():
             if key == 'regex':
@@ -36,6 +38,10 @@ class Key(object):
                     self.__padding = value
                 else:
                     raise Exception('provided padding {0} is not a valid padding pattern must be like "%04d"'.format(value))
+            if key == 'dbEntity':
+                self.__dbEntity = value
+            if key == 'dbField':
+                self.__dbField = value
 
     @property
     def name(self):
@@ -56,6 +62,14 @@ class Key(object):
     @property
     def regex(self):
         return self.__regex
+    
+    @property
+    def dbEntity(self):
+        return self.__dbEntity
+    
+    @property
+    def dbField(self):
+        return self.__dbField
     
     @property
     def value(self):

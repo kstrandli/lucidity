@@ -303,14 +303,14 @@ def test_keys_mutable_side_effect():
     '''Avoid side effects mutating internal keys set.'''
     template = Template('test', '/single/{variable}')
     placeholders = template.keys()
-    assert placeholders == set(['variable'])
+    assert placeholders == ['variable']
 
     # Mutate returned set.
-    placeholders.add('other')
+    placeholders.append('other')
 
     # Newly returned set should be unaffected.
     placeholders_b = template.keys()
-    assert placeholders_b == set(['variable'])
+    assert placeholders_b == ['variable']
 
 
 @pytest.mark.parametrize(('pattern', 'expected'), [

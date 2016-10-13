@@ -6,7 +6,7 @@ import abc
 import sys
 import re
 import functools
-from collections import defaultdict,OrderedDict
+from collections import defaultdict
 
 import lucidity.error
 
@@ -18,11 +18,9 @@ def OrderedSet(alist):
     """ Creates an ordered set of type list
      from a list of tuples or other hashable items 
      """
-    mmap = {} # implements hashed lookup
-    oset = [] # storage for set
+    oset = [] 
     for item in alist:
-        if item not in mmap:
-            mmap[item] = 1
+        if item not in oset:
             oset.append(item)
     return oset
 
@@ -168,12 +166,10 @@ class Template(object):
      
                     target[parts[-1]] = value
                 
-                newData=OrderedDict()
-                for key in self.keys():
-                    if key in data:
-                        value = data.get(key,None)
-                        if value:
-                            newData[key]=value
+                newData=dict()
+                for key,value in data.items():
+                    if value != None:
+                        newData[key]=value
                 return newData
     
         else:

@@ -72,7 +72,7 @@ def test_valid_pattern(pattern):
 def test_invalid_pattern(pattern):
     '''Construct template with invalid pattern.'''
     with pytest.raises(ValueError):
-        Template('test', pattern)
+        Template('test', pattern, validateOnInit = True)
 
 
 @pytest.mark.parametrize(('pattern', 'path', 'expected'), [

@@ -38,7 +38,7 @@ class Template(object):
 
     def __init__(self, name, pattern, anchor=ANCHOR_BOTH,
                  default_placeholder_expression='[A-Za-z0-9\-]+',
-                 duplicate_placeholder_mode=STRICT,
+                 duplicate_placeholder_mode=STRICT, validateOnInit = False,
                  template_resolver=None, key_resolver={}):
         '''Initialise with *name* and *pattern*.
 
@@ -75,7 +75,8 @@ class Template(object):
         self._anchor = anchor
 
         # Check that supplied pattern is valid and able to be compiled.
-        self._construct_regular_expression(self.pattern)
+        if validateOnInit:
+            self._construct_regular_expression(self.pattern)
 
     def __repr__(self):
         '''Return unambiguous representation of template.'''
@@ -279,7 +280,7 @@ class Template(object):
         for key in temp_keys:
             optional_keys.extend(self._PLAIN_PLACEHOLDER_REGEX.findall(key))
         if not self.key_resolver:
-            return set(optional_keys)
+            return OrderedSet(optional_keys)
         else:
             keys = list()
             for key in set(optional_keys):
@@ -287,7 +288,7 @@ class Template(object):
                     keys.append(self.key_resolver.get(key))
                 else:
                     keys.append(key)
-            return set(keys)
+            return OrderedSet(keys)
         
 
     def references(self):
@@ -322,7 +323,27 @@ class Template(object):
             for option in options:
                temp_options.append(option + opt)
             options = temp_options
+        if self.duplicate_placeholder_mode == self.STRICT:
+            temp = list()
+            for key in self.optional_keys():
+                if isinstance(key,lucidity.Key):
+                    key = key.name
+                occurences = 0
+                for optKey in optionalKeys:
+                    if optKey.__contains__(key):
+                        occurences += 1
+                if occurences > 1:
+                    # we do have the same key twice or three times as an optional 
+                    # we only keep the options where we find the exact number of occurences
+                    # all other variations will be dismissed
+                    for option in options:
+                        if option.__contains__(key):
+                            if len(re.findall(key,option)) != occurences:
+                                temp.append(option)
+            if temp:
+                options = list( set(options)-set(temp))
         return options
+
 
     def _construct_regular_expression(self, pattern):
         '''Return a regular expression to represent *pattern*.'''

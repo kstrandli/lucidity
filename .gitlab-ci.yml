@@ -1,4 +1,4 @@
 test:
   script:
   - set PYTHONPATH=.\source
-  - py.test test
+  - py.test test --html=report.html

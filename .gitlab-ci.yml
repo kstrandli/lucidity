@@ -1,3 +1,4 @@
 test:
   script:
+  - set PYTHONPATH=.\source
   - py.test test

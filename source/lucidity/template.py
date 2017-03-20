@@ -73,6 +73,7 @@ class Template(object):
         self._name = name
         self._pattern = pattern
         self._anchor = anchor
+        self.__regexes = None ## once recompiled store the regexes here
 
         # Check that supplied pattern is valid and able to be compiled.
         if validateOnInit:
@@ -132,10 +133,11 @@ class Template(object):
 
         '''
         # Construct a list of regular expression for expanded pattern.
-        regexes = self._construct_regular_expression(self.expanded_pattern())
+        if not self.__regexes:
+            self.__regexes = self._construct_regular_expression(self.expanded_pattern())
         # Parse.
         parsed = {}
-        for regex in regexes:
+        for regex in self.__regexes:
             match = regex.search(path)
             
             if match:

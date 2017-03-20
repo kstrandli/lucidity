@@ -24,6 +24,7 @@ class Key(object):
         self.__value = None
         self.__regex = None
         self.__padding = None
+        self.__function = None
         self.__abstract = ''
         self.__dbEntity = self.__name
         self.__dbField = ''
@@ -33,6 +34,9 @@ class Key(object):
                 self.__regex = re.compile(value)
             if key == 'abstract':
                 self.__abstract = value
+            if key == 'function':
+                self.__function = value
+                self.__value = value() #call the function once at init to set a value
             if key == 'padding':
                 if re.match(r'(\%)([0-9]{0,2})(d)', value):
                     self.__padding = value
@@ -54,6 +58,10 @@ class Key(object):
     @property
     def abstract(self):
         return self.__abstract
+    
+    @property
+    def function(self):
+        return self.__function
     
     @property
     def padding(self):
@@ -89,6 +97,9 @@ class Key(object):
                             return
                     self.__value = self.type(value)
                     return
+                elif str(value) == str(self.name):
+                    self.__value = value
+                    return
                 else:
                     raise Exception('provided value {0} does not match regex {1} for {2}'.format(value, self.regex.pattern,self.__repr__()))
             else:
@@ -114,6 +125,9 @@ class Key(object):
         elif self.type == int and self.padding:
             return self.padding % self.value
         elif self.type == int:
+            return str(self.value)
+        elif self.function:
+            self.__value = self.function()
             return str(self.value)
          
     def __cmp__(self,other):

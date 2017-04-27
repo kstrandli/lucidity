@@ -12,7 +12,7 @@ import lucidity
 
 TEST_TEMPLATE_PATH = os.path.join(
     os.path.dirname(__file__), '..', 'fixture', 'template'
-) 
+)
 
 
 @pytest.fixture
@@ -36,7 +36,7 @@ def test_discover(recursive, expected):
     templates = lucidity.discover_templates(
         [TEST_TEMPLATE_PATH], recursive=recursive
     )
-    assert map(operator.attrgetter('name'), templates) == expected
+    assert [template.name for template in templates] == expected
 
 
 @pytest.mark.parametrize(('path', 'expected'), [
@@ -50,7 +50,7 @@ def test_discover_with_env(path, expected, monkeypatch):
     '''Discover templates using environment variable.'''
     monkeypatch.setenv('LUCIDITY_TEMPLATE_PATH', path)
     templates = lucidity.discover_templates()
-    assert map(operator.attrgetter('name'), templates) == expected
+    assert [template.name for template in templates] == expected
 
 
 @pytest.mark.parametrize(('path', 'expected'), [

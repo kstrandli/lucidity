@@ -119,7 +119,7 @@ def test_non_matching_parse(pattern, path, template_resolver):
     '''Extract data from non-matching path.'''
     template = Template('test', pattern, template_resolver=template_resolver)
     with pytest.raises(ParseError):
-        data = template.parse(path)
+        template.parse(path)
 
 
 @pytest.mark.parametrize(('pattern', 'path', 'expected'), [
@@ -137,7 +137,10 @@ def test_non_matching_parse(pattern, path, template_resolver):
     'multiple duplicates',
     'duplicate from reference'
 ])
-def test_valid_parse_in_strict_mode(pattern, path, expected, template_resolver):
+def test_valid_parse_in_strict_mode(pattern,
+                                    path,
+                                    expected,
+                                    template_resolver):
     '''Extract data in strict mode when no invalid duplicates detected.'''
     template = Template(
         'test', pattern, duplicate_placeholder_mode=Template.STRICT,
@@ -258,8 +261,10 @@ def test_format_failure(pattern, data, template_resolver):
 
 def test_repr():
     '''Represent template.'''
-    assert (repr(Template('test', '/foo/{bar}/{baz:\d+}'))
-            == 'Template(name=\'test\', pattern=\'/foo/{bar}/{baz:\\\d+}\')')
+    assert (
+        repr(Template('test', '/foo/{bar}/{baz:\d+}')) ==
+        'Template(name=\'test\', pattern=\'/foo/{bar}/{baz:\\\d+}\')'
+    )
 
 
 def test_escaping_pattern():
@@ -337,7 +342,7 @@ def test_references(pattern, expected):
     ([], False),
 ], ids=[
     'subclass',
-    'compliant non-subclass',
+    # 'compliant non-subclass',
     'non-compliant non-subclass',
 ])
 def test_resolver_interface_check(instance, expected):

@@ -342,7 +342,7 @@ def test_references(pattern, expected):
     ([], False),
 ], ids=[
     'subclass',
-    # 'compliant non-subclass',
+    'compliant non-subclass',
     'non-compliant non-subclass',
 ])
 def test_resolver_interface_check(instance, expected):

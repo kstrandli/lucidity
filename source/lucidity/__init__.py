@@ -8,6 +8,7 @@ import imp
 
 from ._version import __version__
 from .template import Template, Resolver
+from .key import Key
 from .error import ParseError, FormatError, NotFound
 
 

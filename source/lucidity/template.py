@@ -388,7 +388,7 @@ class Template(object):
                 else:
                     _, value, traceback = sys.exc_info()
                     message = 'Invalid pattern: {0}'.format(value)
-                    raise ValueError, message, traceback  #@IgnorePep8
+                    raise ValueError(message, traceback)
             compiles.append(compiled)
         return compiles
 

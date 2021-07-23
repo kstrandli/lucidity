@@ -7,6 +7,11 @@ import uuid
 import imp
 
 from ._version import __version__
+from .error import (
+    ParseError,
+    FormatError,
+    NotFound
+)
 from .template import Template, Resolver
 from .key import Key
 from .error import ParseError, FormatError, NotFound
@@ -83,47 +88,24 @@ def parse(path, templates):
         .format(path)
     )
 
+from .template import (
+    Template,
+    Resolver,
+    discover_templates,
+    parse,
+    format,
+    get_template
+)
 
-def format(data, templates):  # @ReservedAssignment
-    '''Format *data* using *templates*.
-
-    *data* should be a dictionary of data to format into a path.
-
-    *templates* should be a list of :py:class:`~lucidity.template.Template`
-    instances in the order that they should be tried.
-
-    Return ``(path, template)`` from first successful format.
-
-    Raise :py:class:`~lucidity.error.FormatError` if *data* is not
-    formattable by any of the supplied *templates*.
-
-
-    '''
-    for template in templates:
-        try:
-            path = template.format(data)
-        except FormatError:
-            continue
-        else:
-            return (path, template)
-
-    raise FormatError(
-        'Data {0!r} was not formattable by any of the supplied templates.'
-        .format(data)
-    )
-
-
-def get_template(name, templates):
-    '''Retrieve a template from *templates* by *name*.
-
-    Raise :py:exc:`~lucidity.error.NotFound` if no matching template with
-    *name* found in *templates*.
-
-    '''
-    for template in templates:
-        if template.name == name:
-            return template
-
-    raise NotFound(
-        '{0} template not found in specified templates.'.format(name)
-    )
+__all__ = [
+    "__version__",
+    "ParseError",
+    "FormatError",
+    "NotFound",
+    "Template",
+    "Resolver",
+    "discover_templates",
+    "parse",
+    "format",
+    "get_template",
+]

@@ -1,0 +1,17 @@
+language: python
+
+sudo: required
+dist: trusty
+
+python:
+  - 2.7
+  - 3.6
+
+install:
+  - pip install pytest coveralls
+
+script:
+  - PYTHONPATH=$(pwd)/source pytest test
+
+after_success:
+  - coveralls

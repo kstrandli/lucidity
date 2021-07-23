@@ -2,13 +2,16 @@
 # :copyright: Copyright (c) 2013 Martin Pengelly-Phillips
 # :license: See LICENSE.txt.
 
+import os
+import re
+import imp
 import abc
 import sys
-import re
+import uuid
 import functools
 from collections import defaultdict
 
-import lucidity.error
+from . import error
 
 # Type of a RegexObject for isinstance check.
 _RegexType = type(re.compile(''))
@@ -16,9 +19,9 @@ _RegexType = type(re.compile(''))
 
 def OrderedSet(alist):
     """ Creates an ordered set of type list
-     from a list of tuples or other hashable items 
+     from a list of tuples or other hashable items
      """
-    oset = [] 
+    oset = []
     for item in alist:
         if item not in oset:
             oset.append(item)
@@ -31,7 +34,7 @@ class Template(object):
     _PLAIN_PLACEHOLDER_REGEX = re.compile(r'{(.+?)}')
     _TEMPLATE_REFERENCE_REGEX = re.compile(r'{@(?P<reference>.+?)}')
     _OPTIONAL_KEY_REGEX = re.compile(r'(\[.+?\])')
-    
+
     ANCHOR_START, ANCHOR_END, ANCHOR_BOTH = (1, 2, 3)
 
     RELAXED, STRICT = (1, 2)
@@ -53,7 +56,7 @@ class Template(object):
         be handled during parsing. :attr:`~Template.RELAXED` mode extracts the
         last matching value without checking the other values.
         :attr:`~Template.STRICT` mode ensures that all duplicate placeholders
-        extract the same value and raises :exc:`~lucidity.error.ParseError` if
+        extract the same value and raises :exc:`~error.ParseError` if
         they do not.
 
         If *template_resolver* is supplied, use it to resolve any template
@@ -98,8 +101,8 @@ class Template(object):
     def expanded_pattern(self):
         '''Return pattern with all referenced templates expanded recursively.
 
-        Raise :exc:`lucidity.error.ResolveError` if pattern contains a reference
-        that cannot be resolved by currently set template_resolver.
+        Raise :exc:`error.ResolveError` if pattern contains a
+        reference that cannot be resolved by currently set template_resolver.
 
         '''
         return self._TEMPLATE_REFERENCE_REGEX.sub(
@@ -111,14 +114,15 @@ class Template(object):
         reference = match.group('reference')
 
         if self.template_resolver is None:
-            raise lucidity.error.ResolveError(
-                'Failed to resolve reference {0!r} as no template resolver set.'
+            raise error.ResolveError(
+                'Failed to resolve reference {0!r} as no template '
+                'resolver set.'
                 .format(reference)
             )
 
         template = self.template_resolver.get(reference)
         if template is None:
-            raise lucidity.error.ResolveError(
+            raise error.ResolveError(
                 'Failed to resolve reference {0!r} using template resolver.'
                 .format(reference)
             )
@@ -137,44 +141,38 @@ class Template(object):
             self.__regexes = self._construct_regular_expression(self.expanded_pattern())
         # Parse.
         parsed = {}
-        for regex in self.__regexes:
-            match = regex.search(path)
-            
-            if match:
-                data = {}
-                for key, value in sorted(match.groupdict().items()):
-                    # Strip number that was added to make group name unique.
-                    key = key[:-3]
-    
-                    # If strict mode enabled for duplicate placeholders, ensure that
-                    # all duplicate placeholders extract the same value.
-                    if self.duplicate_placeholder_mode == self.STRICT:
-                        if key in parsed:
-                            if parsed[key] != value:
-                                raise lucidity.error.ParseError(
-                                    'Different extracted values for placeholder '
-                                    '{0!r} detected. Values were {1!r} and {2!r}.'
-                                    .format(key, parsed[key], value)
-                                )
-                        else:
-                            if value:
-                                parsed[key] = value
-    
-                    # Expand dot notation keys into nested dictionaries.
-                    target = data
-     
-                    parts = key.split(self._period_code)
-                    for part in parts[:-1]:
-                        target = target.setdefault(part, {})
-     
-                    target[parts[-1]] = value
-                
-                newData=dict()
-                for key,value in data.items():
-                    if value != None:
-                        newData[key]=value
-                return newData
-    
+
+        match = regex.search(path)
+        if match:
+            data = {}
+            for key, value in sorted(match.groupdict().items()):
+                # Strip number that was added to make group name unique.
+                key = key[:-3]
+
+                # If strict mode enabled for duplicate placeholders, ensure that
+                # all duplicate placeholders extract the same value.
+                if self.duplicate_placeholder_mode == self.STRICT:
+                    if key in parsed:
+                        if parsed[key] != value:
+                            raise lucidity.error.ParseError(
+                                'Different extracted values for placeholder '
+                                '{0!r} detected. Values were {1!r} and {2!r}.'
+                                .format(key, parsed[key], value)
+                            )
+                    else:
+                        parsed[key] = value
+
+                # Expand dot notation keys into nested dictionaries.
+                target = data
+
+                parts = key.split(self._period_code)
+                for part in parts[:-1]:
+                    target = target.setdefault(part, {})
+
+                target[parts[-1]] = value
+
+            return data
+
         else:
             raise lucidity.error.ParseError(
                 'Path {0!r} did not match template pattern.'.format(path)
@@ -202,7 +200,7 @@ class Template(object):
     def apply_fields(self,data,abstract=False):
         '''
         here for convenience
-        
+
         :param data: dict of fields
         :param abstract: if there are lucidity.key objects with an abstract key the formatting will use the abstract definition
         '''
@@ -219,8 +217,8 @@ class Template(object):
         format_specification = self._construct_format_specification(
             self.expanded_pattern()
         )
-        
-        #remove all missing optional keys from the format spec   
+
+        #remove all missing optional keys from the format spec
         format_specification = re.sub(
             self._OPTIONAL_KEY_REGEX,
             functools.partial(self._remove_optional_keys, data = data),
@@ -234,9 +232,10 @@ class Template(object):
 
     def _format(self, match, data, abstract= False):
         '''Return value from data for *match*.'''
-        
+
         placeholder = match.group(1)
         parts = placeholder.split('.')
+
         try:
             value = data
             for part in parts:
@@ -247,7 +246,7 @@ class Template(object):
                     value = str(key)
                     if abstract and key.abstract:
                         value = str(key.abstract)
-                        
+
         except (TypeError, KeyError):
             raise lucidity.error.FormatError(
                 'Could not format data {0!r} due to missing key(s) {1!r}.'
@@ -291,7 +290,7 @@ class Template(object):
                 else:
                     keys.append(key)
             return OrderedSet(keys)
-        
+
 
     def references(self):
         '''Return unique set of referenced templates in pattern.'''
@@ -307,7 +306,7 @@ class Template(object):
             if not placeholder in data:
                 return ""
         return pattern[1:-1]
-    
+
     def _construct_format_specification(self, pattern):
         '''Return format specification from *pattern*.'''
         return self._STRIP_EXPRESSION_REGEX.sub('{\g<1>}', pattern)
@@ -335,7 +334,7 @@ class Template(object):
                     if optKey.__contains__(key):
                         occurences += 1
                 if occurences > 1:
-                    # we do have the same key twice or three times as an optional 
+                    # we do have the same key twice or three times as an optional
                     # we only keep the options where we find the exact number of occurences
                     # all other variations will be dismissed
                     for option in options:
@@ -351,7 +350,7 @@ class Template(object):
         '''Return a regular expression to represent *pattern*.'''
         # Escape non-placeholder components.
         compiles = list()
-        
+
         expressions = self._construct_expressions(pattern)
         for expression in expressions:
             expression = re.sub(
@@ -359,7 +358,7 @@ class Template(object):
                 self._escape,
                 expression
             )
-    
+
             # Replace placeholders with regex pattern.
             expression = re.sub(
                 r'{(?P<placeholder>.+?)(:(?P<expression>(\\}|.)+?))?}',
@@ -368,11 +367,11 @@ class Template(object):
                 ),
                 expression
             )
-    
+
             if self._anchor is not None:
                 if bool(self._anchor & self.ANCHOR_START):
                     expression = '^{0}'.format(expression)
-    
+
                 if bool(self._anchor & self.ANCHOR_END):
                     expression = '{0}$'.format(expression)
             # Compile expression.
@@ -441,7 +440,7 @@ class Template(object):
         groups = match.groupdict()
         if groups['other'] is not None:
             return re.escape(groups['other'])
- 
+
         return groups['placeholder']
 
 
@@ -466,3 +465,120 @@ class Resolver(object):
             return callable(getattr(subclass, 'get', None))
 
         return NotImplemented
+
+
+def discover_templates(paths=None, recursive=True):
+    '''Search *paths* for mount points and load templates from them.
+
+    *paths* should be a list of filesystem paths to search for mount points.
+    If not specified will try to use value from environment variable
+    :envvar:`LUCIDITY_TEMPLATE_PATH`.
+
+    A mount point is a Python file that defines a 'register' function. The
+    function should return a list of instantiated
+    :py:class:`~lucidity.template.Template` objects.
+
+    If *recursive* is True (the default) then all directories under a path
+    will also be searched.
+
+    '''
+    templates = []
+
+    if paths is None:
+        paths = os.environ.get('LUCIDITY_TEMPLATE_PATH', '').split(os.pathsep)
+
+    for path in paths:
+        for base, directories, filenames in os.walk(path):
+            for filename in filenames:
+                _, extension = os.path.splitext(filename)
+                if extension != '.py':
+                    continue
+
+                module_path = os.path.join(base, filename)
+                module_name = uuid.uuid4().hex
+                module = imp.load_source(module_name, module_path)
+                try:
+                    registered = module.register()
+                except AttributeError:
+                    pass
+                else:
+                    if registered:
+                        templates.extend(registered)
+
+            if not recursive:
+                del directories[:]
+
+    return templates
+
+
+def parse(path, templates):
+    '''Parse *path* against *templates*.
+
+    *path* should be a string to parse.
+
+    *templates* should be a list of :py:class:`~lucidity.template.Template`
+    instances in the order that they should be tried.
+
+    Return ``(data, template)`` from first successful parse.
+
+    Raise :py:class:`~error.ParseError` if *path* is not
+    parseable by any of the supplied *templates*.
+
+    '''
+    for template in templates:
+        try:
+            data = template.parse(path)
+        except error.ParseError:
+            continue
+        else:
+            return (data, template)
+
+    raise error.ParseError(
+        'Path {0!r} did not match any of the supplied template patterns.'
+        .format(path)
+    )
+
+
+def format(data, templates):  # @ReservedAssignment
+    '''Format *data* using *templates*.
+
+    *data* should be a dictionary of data to format into a path.
+
+    *templates* should be a list of :py:class:`~lucidity.template.Template`
+    instances in the order that they should be tried.
+
+    Return ``(path, template)`` from first successful format.
+
+    Raise :py:class:`~error.FormatError` if *data* is not
+    formattable by any of the supplied *templates*.
+
+
+    '''
+    for template in templates:
+        try:
+            path = template.format(data)
+        except error.FormatError:
+            continue
+        else:
+            return (path, template)
+
+    raise error.FormatError(
+        'Data {0!r} was not formattable by any of the supplied templates.'
+        .format(data)
+    )
+
+
+def get_template(name, templates):
+    '''Retrieve a template from *templates* by *name*.
+
+    Raise :py:exc:`~error.NotFound` if no matching template with
+    *name* found in *templates*.
+
+    '''
+    for template in templates:
+        if template.name == name:
+            return template
+
+    raise error.NotFound(
+        '{0} template not found in specified templates.'.format(name)
+    )

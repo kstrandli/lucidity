@@ -3,7 +3,9 @@
 # :license: See LICENSE.txt.
 
 import pytest
-
+import sys
+import os
+sys.path.append(os.path.join(os.path.dirname(__file__), '..','..', 'source'))
 from lucidity import Template, Resolver
 from lucidity.error import ParseError, FormatError, ResolveError
 
@@ -70,7 +72,7 @@ def test_valid_pattern(pattern):
 def test_invalid_pattern(pattern):
     '''Construct template with invalid pattern.'''
     with pytest.raises(ValueError):
-        Template('test', pattern)
+        Template('test', pattern, validateOnInit = True)
 
 
 @pytest.mark.parametrize(('pattern', 'path', 'expected'), [
@@ -97,7 +99,7 @@ def test_invalid_pattern(pattern):
 ])
 def test_matching_parse(pattern, path, expected, template_resolver):
     '''Extract data from matching path.'''
-    template = Template('test', pattern, template_resolver=template_resolver)
+    template = Template('test', pattern, template_resolver=template_resolver, duplicate_placeholder_mode=1)
     data = template.parse(path)
     assert data == expected
 
@@ -301,14 +303,14 @@ def test_keys_mutable_side_effect():
     '''Avoid side effects mutating internal keys set.'''
     template = Template('test', '/single/{variable}')
     placeholders = template.keys()
-    assert placeholders == set(['variable'])
+    assert placeholders == ['variable']
 
     # Mutate returned set.
-    placeholders.add('other')
+    placeholders.append('other')
 
     # Newly returned set should be unaffected.
     placeholders_b = template.keys()
-    assert placeholders_b == set(['variable'])
+    assert placeholders_b == ['variable']
 
 
 @pytest.mark.parametrize(('pattern', 'expected'), [

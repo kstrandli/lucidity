@@ -11,7 +11,7 @@ import uuid
 import functools
 from collections import defaultdict
 
-from . import error
+from . import error, Key
 
 # Type of a RegexObject for isinstance check.
 _RegexType = type(re.compile(''))
@@ -155,7 +155,7 @@ class Template(object):
                     if self.duplicate_placeholder_mode == self.STRICT:
                         if key in parsed:
                             if parsed[key] != value:
-                                raise lucidity.error.ParseError(
+                                raise error.ParseError(
                                     'Different extracted values for placeholder '
                                     '{0!r} detected. Values were {1!r} and {2!r}.'
                                     .format(key, parsed[key], value)
@@ -291,7 +291,7 @@ class Template(object):
         if self.duplicate_placeholder_mode == self.STRICT:
             temp = list()
             for key in self.optional_keys():
-                if isinstance(key,lucidity.Key):
+                if isinstance(key, Key):
                     key = key.name
                 occurences = 0
                 for optKey in optionalKeys:
@@ -351,7 +351,7 @@ class Template(object):
                 else:
                     _, value, traceback = sys.exc_info()
                     message = 'Invalid pattern: {0}'.format(value)
-                    raise ValueError, message, traceback  #@IgnorePep8
+                    raise ValueError(message, traceback)
             compiles.append(compiled)
         return compiles
 
